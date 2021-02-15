@@ -1,0 +1,1078 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta name="viewport" content="width=device-width, user-scalable=no">
+<title>Ninja JS Framework</title>
+<style>
+	html, body, body div, span, object, iframe, h1, h2, h3, h4, h5, h6, p, blockquote, pre, abbr, address, cite, code, del, dfn, em, img, ins, kbd, q, samp, small, strong, sub, sup, var, b, i, dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td, a, article, aside, figure, footer, header, hgroup, menu, nav, section, time, mark, audio, video {margin:0; padding:0; border:0; outline:0; font-size:100%; vertical-align:baseline; background:transparent;outline:0;}
+	article, aside, figure, footer, header, hgroup, nav, section {display:block;}
+	img, object, embed {max-width:100%;}
+	ul {list-style:none;}
+	body
+	{
+		overflow-x:hidden;
+	}
+	body:-webkit-full-screen
+	{
+		float: none;
+		width: 100%;
+		height: 100%;
+		padding: 0;
+		margin: 0;
+		border: 0 none;
+		background-color: #f00;
+	}
+
+	body:-moz-full-screen
+	{
+		float: none;
+		width: 100%;
+		height: 100%;
+		padding: 0;
+		margin: 0;
+		border: 0 none;
+	}
+
+	body:-ms-full-screen
+	{
+		float: none;
+		width: 100%;
+		height: 100%;
+		padding: 0;
+		margin: 0;
+		border: 0 none;
+	}
+
+	body:-o-full-screen
+	{
+		float: none;
+		width: 100%;
+		height: 100%;
+		padding: 0;
+		margin: 0;
+		border: 0 none;
+	}
+
+	body:full-screen
+	{
+		float: none;
+		width: 100%;
+		height: 100%;
+		padding: 0;
+		margin: 0;
+		border: 0 none;
+	}
+
+</style>
+</head>
+
+<body>
+	<div id="wrap">
+		<canvas id="canvas" width="100" height="100" style="background-color:#000;position:absolute;transform-origin: 0% 0%;"></canvas>
+		<!-- <canvas id="canvasDebug" width="100" height="100" style="position:absolute;"></canvas> -->
+		<div style="position:absolute;top:0;pointer-events: none;-webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; "><h2 id="fps">FPS: </h2></div>
+	</div>
+	<script src="./js/lib/easeljs-0.8.2.min.js"></script>
+	<script src="./js/lib/preloadjs-0.6.2.min.js"></script>
+	<script src="./js/lib/Box2d.min.js"></script>
+	<script src="./js/lib/SFS2X_API_JS.js"></script>	
+	<!-- <script src="./js/lib/easeljs/display/SpriteContainer.js"></script>
+	<script src="./js/lib/easeljs/display/SpriteStage.js"></script> -->
+	<script>
+		var sceneWidth  = 15000;
+		var sceneHeight = 15000;
+		var stageWidth;
+		var stageHeight;		
+		var canvasWidth;
+		var canvasHeight;
+		var canvasWidth_m;
+		var canvasHeight_m;
+		var keys = {};
+		var images = {};
+		var velocity = 10;
+		var FPS = 60;
+    	var minStageWidth = 960;
+
+    	var smfs,room;
+    	var ROOM_NAME = "ponce";
+    	var USERVAR_X = "x";
+		var USERVAR_Y = "y";
+		var USERVAR_DIR = "d";
+		var avatars	 = {};
+    	var isServer = false;
+
+		var wrap 	= document.getElementById("wrap");
+		var fps 	= document.getElementById("fps");
+		var canvas 	= document.getElementById("canvas");
+		var canvasDebug = document.getElementById("canvasDebug");
+		var stage;
+		var scene,bg,sky,floor,plants,layerPlants,players,player,blocks;
+		var blocks_arr = [];
+		var blocks_config_arr;
+
+		var context,debugContext;
+
+		// Box2d vars
+		var b2Vec2 = Box2D.Common.Math.b2Vec2;
+		var b2BodyDef = Box2D.Dynamics.b2BodyDef;
+		var b2Body = Box2D.Dynamics.b2Body;
+		var b2FixtureDef = Box2D.Dynamics.b2FixtureDef;
+		var b2Fixture = Box2D.Dynamics.b2Fixture;
+		var b2World = Box2D.Dynamics.b2World;
+		var b2PolygonShape = Box2D.Collision.Shapes.b2PolygonShape;
+		var b2CircleShape = Box2D.Collision.Shapes.b2CircleShape;
+		var b2DebugDraw = Box2D.Dynamics.b2DebugDraw;
+
+		var world;
+		var SCALE = 30;
+
+		function loadSprites()
+		{
+			var loader = new createjs.LoadQueue(false);
+			//createjs.Sound.alternateExtensions = ["mp3","ogg","flac","m4a","wav"];
+			loader.installPlugin(createjs.Sound);
+			loader.addEventListener("fileload", handleFileLoad);
+			//loader.addEventListener("progress", handleFileProgress);
+			loader.addEventListener("complete", handleComplete);
+			//loader.addEventListener("error", hanleFileError);
+			loader.loadFile({id:"sky", src:"img/sky.png"});
+			loader.loadFile({id:"floor", src:"img/floor.png"});
+			loader.loadFile({id:"plants", src:"img/plants.png"});
+			loader.loadFile({id:"yoshi", src:"img/yoshi.png"});
+			loader.loadFile({id:"1", src:"img/block.png"});
+			loader.loadFile({id:"2", src:"img/block2.png"});
+			loader.loadFile({id:"3", src:"img/block3.png"});
+		}
+
+		function handleFileLoad(e) {
+			//if (evt.item.type == "sound") //console.log(evt.item.src);
+			if (e.item.type == "image") { images[e.item.id] = e.result; }
+		}
+
+		function handleComplete() {
+			setupSmartFox();
+		}
+
+		//SMARTFOX SERVER
+		function setupSmartFox()
+		{
+			var config = {};
+			config.host = "172.20.10.5";
+			config.port = 8888;
+			config.zone = "SimpleMMOWorld";
+			config.debug = false;
+			
+			smfs = new SmartFox(config);
+
+			smfs.addEventListener(SFS2X.SFSEvent.CONNECTION, onConnection);
+			smfs.addEventListener(SFS2X.SFSEvent.CONNECTION_LOST, onConnectionLost);
+			smfs.addEventListener(SFS2X.SFSEvent.LOGIN_ERROR, onLoginError);
+			smfs.addEventListener(SFS2X.SFSEvent.LOGIN, onLogin);
+			smfs.addEventListener(SFS2X.SFSEvent.ROOM_JOIN_ERROR, onRoomJoinError);
+			smfs.addEventListener(SFS2X.SFSEvent.ROOM_JOIN, onRoomJoin);
+			smfs.addEventListener(SFS2X.SFSEvent.ROOM_ADD, onRoomAdded)
+			smfs.addEventListener(SFS2X.SFSEvent.ROOM_CREATION_ERROR, onRoomCreationError)
+			smfs.addEventListener(SFS2X.SFSEvent.PROXIMITY_LIST_UPDATE, onProximityListUpdate);
+			smfs.addEventListener(SFS2X.SFSEvent.USER_VARIABLES_UPDATE, onUserVariablesUpdate);
+			smfs.addEventListener(SFS2X.SFSEvent.PUBLIC_MESSAGE, onPublicMessage);
+			smfs.addEventListener(SFS2X.SFSEvent.ROOM_VARIABLES_UPDATE, onRoomVarsUpdate);	
+
+			console.log("SmartFox API version: " + smfs.version);
+
+			smfs.connect();
+		}
+
+		function onConnection(e)
+		{
+			if (e.success)
+			{
+				console.log("Connected to SmartFoxServer 2X!");				
+				smfs.send(new SFS2X.Requests.System.LoginRequest(Date.now()+""));
+			}else{
+				var error = "Connection failed: " + (e.errorMessage ? e.errorMessage + " (code " + e.errorCode + ")" : "is the server running at all?");
+				console.log(error);
+			}
+		}
+
+		function onConnectionLost(e)
+		{
+			var reason = "You have been disconnected; reason is: " + e.reason;
+			console.log(reason);
+		}
+
+		function onLoginError(e)
+		{
+			var error = "Login error: " + e.errorMessage + " (code " + e.errorCode + ")";
+			console.log(error);
+		}
+
+		function onLogin(e)
+		{
+			var room = smfs.roomManager.getRoomByName(ROOM_NAME);
+
+			if(!room)
+			{
+				var settings = new SFS2X.Requests.MMO.MMORoomSettings(ROOM_NAME);
+				settings.defaultAOI = new SFS2X.Entities.Data.Vec3D(sceneWidth,sceneWidth);
+				settings.userMaxLimboSeconds = 30;
+				//settings.variables = [new SFS2X.Entities.Variables.SFSRoomVariable("scenario",[1,2,3],SFS2X.Entities.Variables.VariableType.ARRAY)];
+	         	var autojoin = true;
+	         	var roomToLeave = -1;
+	         	smfs.send(new SFS2X.Requests.System.CreateRoomRequest(settings, autojoin, roomToLeave));
+
+	         	isServer = true;
+	         }else smfs.send(new SFS2X.Requests.System.JoinRoomRequest(ROOM_NAME));
+		}
+
+		function onRoomJoinError(e)
+		{
+			console.log("Room join error: " + e.errorMessage + " (code: " + e.errorCode + ")");
+		}
+
+		function onRoomJoin(e)
+		{
+			room = e.room;
+			console.log("Room joined: " + e.id);
+			
+			setupGame();
+
+			if(isServer) {
+				var blocksVar = new SFS2X.Entities.Variables.SFSRoomVariable("scenario",blocks_config_arr,SFS2X.Entities.Variables.VariableType.ARRAY);
+				blocksVar.isPersistent 	= true;
+				blocksVar.isPrivate 	= true;
+				smfs.send(new SFS2X.Requests.System.SetRoomVariablesRequest([blocksVar]));
+			}else{
+				var blocks_arr = room.getVariable("scenario").value;
+				for(var i=0;i<blocks_arr.length;i++)
+				{
+					var config = blocks_arr[i];
+					addBlock(config.imgID,config.x,config.y,config.rotation);
+				}
+			}
+
+			var pos = new SFS2X.Entities.Data.Vec3D(player.x,player.y, 0);
+			smfs.send( new SFS2X.Requests.MMO.SetUserPositionRequest(pos) );
+		}
+
+		function onRoomAdded(e)
+		{
+		    console.log("A new Room was added: " + e.room )
+		}
+		 
+		function onRoomCreationError(e)
+		{
+		    console.log("An error occurred while attempting to create the Room: " + e.errorMessage)
+		}
+
+		function onProximityListUpdate(e)
+		{
+			//console.log(smfs.roomManager. getJoinedRooms()[0]. getUserList().length);
+
+			var removed = e.removedUsers;
+			for (var i = 0; i < removed.length; i++)
+			{
+				var user = removed[i];				
+				removeAvatar(user.id);
+			}
+			
+			var added = e.addedUsers;
+			for (var j = 0; j < added.length; j++)
+			{
+				var user = added[j];
+
+				var pos = user.aoiEntryPoint;
+				createAvatar(user.id, pos.px, pos.py);
+			}
+		}
+
+		function onUserVariablesUpdate(e)
+		{
+			var changedVars = e.changedVars;
+			var user = e.user;
+			
+			if(user.id!=smfs.mySelf.id) {
+				var player = avatars[user.id];
+				var x = user.getVariable(USERVAR_X).value;
+				var y = user.getVariable(USERVAR_Y).value;
+				var d = user.getVariable(USERVAR_DIR).value;
+				player.body.SetPosition({x:x,y:y});
+				player.scaleX = d;
+			}
+		}
+
+		function onPublicMessage(e)
+		{
+			var sender = e.sender;
+			var msg = e.message;
+			
+			console.log(msg);
+		}
+
+		function onRoomVarsUpdate(e)
+		{
+			var changedVars = e.changedVars;
+			var room = e.room;
+			
+			//console.log("VARS: ",room.variables);
+		}
+		//FIM SMARTFOX SERVER
+
+		function setupGame()
+		{
+			stage = new createjs.Stage(canvas);
+			stage.snapPixelsEnabled = true;
+
+			context 	 = canvas.getContext("2d");
+			debugContext = canvasDebug?canvasDebug.getContext('2d'):null;
+
+			setupBox2d();
+
+			scene = new createjs.Container();
+
+			//bg = new createjs.Shape();
+			//bg.graphics.beginFill("red").drawRect(0, 0, sceneWidth,sceneHeight);
+
+			sky = new createjs.Bitmap(images.sky);
+			sky.scaleX = (sceneWidth*.25)/2500;
+			sky.scaleY = (sceneHeight*.25)/2500;
+
+			floor = new createjs.Shape();
+			floor.graphics.beginBitmapFill(images.floor).drawRect(0, 0, sceneWidth,150);
+			floor.y = sceneHeight-150;
+
+			layerPlants = new createjs.Container();
+			layerPlants.setBounds(0,0,sceneWidth*1.5,sceneHeight*1.5);
+			plants = new createjs.Shape();
+			plants.graphics.beginBitmapFill(images.plants).drawRect(0, 0, layerPlants.getTransformedBounds().width,250);
+			plants.y = layerPlants.getTransformedBounds().height-250;
+			layerPlants.addChild(plants);
+
+			players = new createjs.Container();
+
+			blocks = new createjs.Container();
+
+			if(isServer)
+			{
+				blocks_config_arr = [];
+
+				for(var i=0;i<200;i++)
+				{
+					addBlock(1,Math.random()*sceneWidth,Math.random()*sceneHeight,Math.random()*360);
+				}
+			}
+
+			//textos
+			var addText = function(text,_x,_y,imgID)
+			{
+				var chars = {
+					a:[
+					[1,1,1],
+					[1,0,1],
+					[1,1,1],
+					[1,0,1],
+					[1,0,1]],
+					b:[
+					[1,1,1],
+					[1,0,1],
+					[1,1,1],
+					[1,0,1],
+					[1,1,1]],
+					c:[
+					[1,1,1],
+					[1,0,0],
+					[1,0,0],
+					[1,0,0],
+					[1,1,1]],
+					d:[
+					[1,1,0],
+					[1,0,1],
+					[1,0,1],
+					[1,0,1],
+					[1,1,0]],
+					e:[
+					[1,1,1],
+					[1,0,0],
+					[1,1,1],
+					[1,0,0],
+					[1,1,1]],
+					é:[
+					4,
+					[0,0,1],
+					[0,1,0],
+					[0,0,0],
+					[1,1,1],
+					[1,0,0],
+					[1,1,1],
+					[1,0,0],
+					[1,1,1]],
+					ê:[
+					4,
+					[0,1,],
+					[1,0,1],
+					[0,0,0],
+					[1,1,1],
+					[1,0,0],
+					[1,1,1],
+					[1,0,0],
+					[1,1,1]],
+					f:[
+					[1,1,1],
+					[1,0,0],
+					[1,1,1],
+					[1,0,0],
+					[1,0,0]],
+					g:[
+					[1,1,1],
+					[1,0,0],
+					[1,0,0],
+					[1,0,1],
+					[1,1,1]],
+					h:[
+					[1,0,1],
+					[1,0,1],
+					[1,1,1],
+					[1,0,1],
+					[1,0,1]],
+					i:[
+					[1,1,1],
+					[0,1,0],
+					[0,1,0],
+					[0,1,0],
+					[1,1,1]],
+					j:[
+					[1,1,1],
+					[0,0,1],
+					[1,0,1],
+					[1,0,1],
+					[1,1,1]],
+					k:[
+					[1,0,1],
+					[1,0,1],
+					[1,1,0],
+					[1,0,1],
+					[1,0,1]],
+					l:[
+					[1,0,0],
+					[1,0,0],
+					[1,0,0],
+					[1,0,0],
+					[1,1,1]],
+					m:[
+					[1,1,1,1,1],
+					[1,0,1,0,1],
+					[1,0,1,0,1],
+					[1,0,1,0,1],
+					[1,0,1,0,1]],
+					n:[
+					[1,1,1],
+					[1,0,1],
+					[1,0,1],
+					[1,0,1],
+					[1,0,1]],
+					o:[
+					[1,1,1],
+					[1,0,1],
+					[1,0,1],
+					[1,0,1],
+					[1,1,1]],
+					p:[
+					[1,1,1],
+					[1,0,1],
+					[1,1,1],
+					[1,0,0],
+					[1,0,0]],
+					q:[
+					[1,1,1],
+					[1,0,1],
+					[1,0,1],
+					[1,0,1],
+					[1,1,1],
+					[0,0,0,1]],
+					r:[
+					[1,1,1],
+					[1,0,1],
+					[1,1,0],
+					[1,0,1],
+					[1,0,1]],
+					s:[
+					[1,1,1],
+					[1,0,0],
+					[1,1,1],
+					[0,0,1],
+					[1,1,1]],
+					t:[
+					[1,1,1],
+					[0,1,0],
+					[0,1,0],
+					[0,1,0],
+					[0,1,0]],
+					u:[
+					[1,0,1],
+					[1,0,1],
+					[1,0,1],
+					[1,0,1],
+					[1,1,1]],
+					v:[
+					[1,0,1],
+					[1,0,1],
+					[1,0,1],
+					[1,0,1],
+					[0,1,0]],
+					y:[
+					[1,0,1],
+					[1,0,1],
+					[1,0,1],
+					[0,1,0],
+					[0,1,0]],
+					1:[
+					[1],
+					[1],
+					[1],
+					[0],
+					[1]]
+				};
+
+				var drawChar = function(char){
+					var tiles_arr = chars[char];
+					if(tiles_arr)
+					{
+						
+						var first = tiles_arr[0];
+						var _i = Number.isInteger(first)?1:0;
+						var fix_y = _i?(-first*70):0;
+						var last_x = addTiles(tiles_arr,_x,(_y+fix_y),imgID).lastX;
+						_x += last_x+140;
+					}else if(char==" ") _x += 140;
+				}
+
+				var total = text.length;
+				for(var i=0;i<total;i++)
+				{
+					var char = text.charAt(i).toLowerCase();
+					drawChar(char);
+				}
+				return {lastX:_x}
+			}
+			var addTiles = function(tiles_arr,_x,_y,imgID)
+			{
+				var last_x = 0;
+				for(var i=0;i<tiles_arr.length;i++)
+				{
+					var line_arr = tiles_arr[i];
+					if(typeof line_arr!='object') continue;
+					var y = 70*i;
+					for(var j=0;j<line_arr.length;j++){
+						var val = line_arr[j];
+						var x = 70*j;
+						if(x>last_x) last_x = x;
+						if(val) addBlock((imgID?imgID:val),_x+x,_y+y);
+					}
+				}
+				return {lastX:last_x};
+			}
+			//tiles
+			if(isServer)
+			{
+				var _x = sceneWidth*.5;
+				var _y = 800;
+				var lastX = addText("BURGOSMESTRE 11",_x,_y,3).lastX;
+				addTiles([
+						[0,3,0,3,0],
+						[3,2,3,2,3],
+						[3,2,2,2,3],
+						[0,3,2,3,0],
+						[0,0,3,0,0]],lastX,_y);
+				addTiles([[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]],_x-560,_y+490);
+				addText("QUARKY INTERACTIVE",500,sceneHeight-600,3);
+				addText("you are super player 11",sceneWidth-5700,sceneHeight-600,3);
+				addTiles([
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+					[0,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+					],sceneWidth*.5,sceneHeight*.5);
+			}
+			//tiles
+
+			//scene.addChild(bg);
+			scene.addChild(sky);
+			scene.addChild(floor);
+			scene.addChild(blocks);
+			scene.addChild(players);
+			scene.addChild(layerPlants);
+			stage.addChild(scene);
+			
+			createAvatar(smfs.mySelf.id,100,(sceneHeight-300));
+
+			//top box2d
+			var topFixture = new b2FixtureDef;
+			topFixture.shape = new b2PolygonShape;
+			topFixture.shape.SetAsBox(sceneWidth / SCALE, 10 / SCALE);
+			var topBodyDef = new b2BodyDef;
+			topBodyDef.type = b2Body.b2_staticBody;
+			topBodyDef.position.x = floor.x / SCALE;
+			topBodyDef.position.y = -500 / SCALE;
+			var top = world.CreateBody(topBodyDef);
+			top.CreateFixture(topFixture);
+
+			//floor box2d
+			var floorFixture = new b2FixtureDef;
+			floorFixture.shape = new b2PolygonShape;
+			floorFixture.shape.SetAsBox((sceneWidth+100) / SCALE, 10 / SCALE);
+			var floorBodyDef = new b2BodyDef;
+			floorBodyDef.type = b2Body.b2_staticBody;
+			floorBodyDef.position.x = (floor.x-50) / SCALE;
+			floorBodyDef.position.y = (floor.y+10) / SCALE;
+			var floor = world.CreateBody(floorBodyDef);
+			floor.CreateFixture(floorFixture);
+
+			//player.x = 60;
+			//player.y = floor.y-player.getTransformedBounds().height;
+
+			// var planet = new createjs.Shape();
+			// planet.graphics.beginFill("red").drawCircle(690, 3600, 3184);
+			// stage.addChild(planet);
+
+			updateCache();
+			startRender();
+
+			document.onkeydown = keydown;
+    		document.onkeyup   = keyup;
+
+			document.addEventListener("touchstart", _down_handle, false);
+			document.addEventListener("touchend", _up_handle, false);
+
+			document.addEventListener('mousedown', gotoFullScreen);
+			document.addEventListener('touchstart', gotoFullScreen);
+		}
+
+		function createAvatar(id, x, y)
+		{
+			var amI = id==smfs.mySelf.id;
+
+			var player = new createjs.Bitmap(images.yoshi);
+			player.x = x;
+			player.y = y;
+			player.regX = 130;
+			player.regY = 325;
+			player.scaleX = player.scaleY = .25;
+			player.snapToPixel = true;
+			player.mouseEnabled = false;
+			//player.graphics.beginFill("DeepSkyBlue").drawCircle(0, 0, 50);
+
+			players.addChild(player);
+
+			//player box2d
+			var playerFixture = new b2FixtureDef;			
+			playerFixture.shape = new b2PolygonShape();
+			playerFixture.shape.SetAsBox(18 / SCALE, 30 / SCALE);
+			var playerBodyDef = new b2BodyDef;
+			playerBodyDef.type = amI?b2Body.b2_dynamicBody:b2Body.b2_kinematicBody;
+			playerBodyDef.position.x = player.x / SCALE;
+			playerBodyDef.position.y = player.y / SCALE;
+			var b2player = world.CreateBody(playerBodyDef);
+			b2player.CreateFixture(playerFixture);
+
+			player.fixture = playerFixture;
+			player.def  = playerBodyDef;
+			player.body = b2player;
+
+			if(amI) window.player = player;
+			avatars[id] = player;
+		}
+
+		function removeAvatar(id)
+		{
+			var player = avatars[id];
+			world.DestroyBody(player.body);
+			players.removeChild(player);
+			delete avatars[id];
+		}
+
+		function addBlock(imgID,x,y,rotation)
+		{
+			var image = images[imgID];
+			if(!rotation) rotation = 0;
+			var block = new createjs.Bitmap(image);
+			block.regX = 35;
+			block.regY = 35;
+			block.x = x;
+			block.y = y;
+			//blocks.addChild(block);
+			//block.cache(0,0,bounds.width,bounds.height);
+			blocks_arr.push(block);
+			if(blocks_config_arr) blocks_config_arr.push({imgID:imgID,x:x,y:y,rotation:rotation});
+
+			var bounds = block.getTransformedBounds();
+
+			var boxFixture = new b2FixtureDef;
+			boxFixture.shape = new b2PolygonShape();
+			boxFixture.shape.SetAsBox(bounds.width*.5 / SCALE, bounds.height*.5 / SCALE);
+			var boxBodyDef = new b2BodyDef;
+			boxBodyDef.type = b2Body.b2_staticBody;
+			boxBodyDef.position.x = block.x / SCALE;
+			boxBodyDef.position.y = block.y / SCALE;
+			boxBodyDef.angle = (rotation*Math.PI)/180;
+			var box = world.CreateBody(boxBodyDef);
+			//box.CreateFixture(boxFixture);
+
+			block.fixture = boxFixture;
+			block.body = box;
+
+			block.rotation = rotation;
+		}
+
+		function gotoFullScreen(e)
+		{
+			if(!document.fullscreenElement && !document.mozFullScreenElement &&
+    !document.webkitFullscreenElement && !document.msFullscreenElement)
+			{
+				if (document.body.webkitRequestFullscreen) {
+					document.body.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+			  	}else {
+				    if (document.body.mozRequestFullScreen) {
+				      document.body.mozRequestFullScreen();
+				    } else {
+				      document.body.requestFullscreen();
+					}
+				}
+			}
+		}
+
+		var touchesObj = {};
+
+		function _down_handle(e)
+		{
+			e.preventDefault();
+			var touches = e.changedTouches;
+			for(var i=0;i<touches.length;i++){
+				var mouseX = touches[i].pageX;
+				var mouseY = touches[i].pageY;
+				var id 	   = touches[i].identifier;
+
+				touchesObj[id] = [];
+
+				var goJump = mouseY<stageHeight*.5;
+
+				if(mouseX>stageWidth*.7) { keys[39] = true; touchesObj[id].push(39); }
+				if(mouseX<stageWidth*.3) { keys[37] = true; touchesObj[id].push(37); }
+				if(goJump) { keys[38] = true; touchesObj[id].push(38); }
+			}
+		}
+
+		function _up_handle(e)
+		{
+			e.preventDefault();
+			var touches = e.changedTouches;
+			for(var i=0;i<touches.length;i++){
+				var id 	   = touches[i].identifier;				
+				var codes = touchesObj[id];
+
+				for(var j=0;j<codes.length;j++){
+					var code = codes[j];
+					//if(code==38) jumpPress = false;
+					//delete keys[code];
+					keyup({keyCode:code});
+				}
+			}
+		}
+
+		function setupBox2d()
+		{
+			world = new b2World(new b2Vec2(0,10), true);
+
+			if(debugContext)
+			{
+				var debugDraw = new b2DebugDraw();
+					debugDraw.SetSprite(debugContext);
+					debugDraw.SetDrawScale(SCALE);
+					debugDraw.SetFillAlpha(0.7);
+					debugDraw.SetLineThickness(1.0);
+					debugDraw.SetFlags(b2DebugDraw.e_shapeBit | b2DebugDraw.e_jointBit);
+					world.SetDebugDraw(debugDraw);
+			}
+		}
+		
+		function updateCache()
+		{
+			//sky.cache(0,0,sky.getTransformedBounds().width,sky.getTransformedBounds().height);
+			//floor.cache(0,0,sceneWidth,150);
+			//blocks.cache(0,0,sceneWidth,sceneHeight);
+			//layerPlants.cache(0,0,layerPlants.getTransformedBounds().width,layerPlants.getTransformedBounds().height);
+		}
+
+		function startRender()
+		{
+			createjs.Ticker.setFPS(FPS);
+			createjs.Ticker.timingMode = createjs.Ticker.RAF_SYNCHED;
+			createjs.Ticker.addEventListener("tick",handleTick);
+		}
+
+		function handleTick(e)
+		{
+			if(player)
+			{
+				updateBox2d();
+				updateGame();
+			}
+			stage.update();
+		}
+
+		function keydown(e) {
+		    keys[e.keyCode] = true;
+		}
+
+		function keyup(e) {
+			var vel = player.body.GetLinearVelocity();
+
+			switch(e.keyCode)
+			{
+				case 38:
+					jumpPress = false;
+					break;
+				case 37:
+					if(lastDirection==-1) player.body.ApplyImpulse(new b2Vec2(-vel.x*.75,0),player.body.GetWorldCenter());
+					break;
+				case 39:
+					if(lastDirection==1) player.body.ApplyImpulse(new b2Vec2(-vel.x*.75,0),player.body.GetWorldCenter());
+					break;
+			}
+
+		    delete keys[e.keyCode];
+		}
+
+		function updateBox2d()
+		{
+			for(var id in avatars){
+				var player = avatars[id];
+				player.x = player.body.GetWorldCenter().x * SCALE;
+				player.y = player.body.GetWorldCenter().y * SCALE;
+				//if(id!=smfs.mySelf) player.body.ApplyForce(new b2Vec2(0,-10),player.body.GetWorldCenter());
+			}
+
+			world.Step(1 / (FPS*.4), 10, 10);
+	        world.ClearForces();
+	        if(debugContext)
+	        {
+   				world.m_debugDraw.m_sprite.graphics.clear();
+   				world.DrawDebugData();
+   			}
+		}
+
+		var jumpPress;
+		var lastDirection;
+		var lastPos = {};
+
+		function updateGame() 
+		{
+			var _x = 0;
+			var _y = 0;
+
+			var vel = player.body.GetLinearVelocity();
+
+			///====== player 
+		    if (keys[38] && !jumpPress)
+		    {
+		    	jumpPress = true;
+		        if(vel.y>-20) player.body.ApplyImpulse(new b2Vec2(0,-9),player.body.GetWorldCenter());
+		    }
+		    else if (keys[40])
+		    {
+		        //player.y += velocity;
+		    }
+
+		    if (keys[37] && !(lastDirection==1 && keys[39]))
+		    {
+		        //player.x -= velocity;
+		        if(vel.x>-velocity) _x = -velocity;
+		        if(player.scaleX>0) player.scaleX *= -1;
+		        lastDirection = -1;
+		    }
+		    if (keys[39] && !(lastDirection==-1 && keys[37]))
+		    {
+		        //player.x += velocity;
+		        if(vel.x<velocity) _x = velocity;
+		        if(player.scaleX<0) player.scaleX *= -1;
+		        lastDirection = 1;
+		    }
+		    player.body.GetLinearVelocity();
+		  	var v = new b2Vec2(_x,_y);
+
+		    player.body.ApplyForce(
+				v,
+				player.body.GetWorldCenter()
+			);
+
+		    var pos = player.body.GetPosition();
+
+		    //testa limites ---
+			if(pos.x<-1.5) player.body.SetPosition({x:sceneWidth/SCALE+1.5,y:pos.y});
+			if(pos.x>sceneWidth/SCALE+1.5) player.body.SetPosition({x:0/SCALE-1.5,y:pos.y});
+
+			//if(pos.x!=lastPos.x || pos.y!=lastPos.y) {
+				var userVars = [];
+				userVars.push(new SFS2X.Entities.Variables.SFSUserVariable(USERVAR_X, pos.x));
+				userVars.push(new SFS2X.Entities.Variables.SFSUserVariable(USERVAR_Y, pos.y));
+				userVars.push(new SFS2X.Entities.Variables.SFSUserVariable(USERVAR_DIR, player.scaleX));
+				smfs.send( new SFS2X.Requests.System.SetUserVariablesRequest(userVars) );
+			//}
+
+			lastPos.x = pos.x;
+			lastPos.y = pos.y;
+
+		    //player.x = player.y += velocity;
+
+		    // player.x = player.x<0?0:player.x;
+		    // player.x = player.x>sceneWidth?sceneWidth:player.x;
+		    // player.y = player.y<0?0:player.y;
+		    // player.y = player.y>sceneHeight?sceneHeight:player.y;
+
+		    scene.x = canvasWidth_m-player.x;
+		    scene.y = canvasHeight_m-player.y+(canvasHeight*.11);
+
+		    var minX = -sceneWidth+canvasWidth;
+		    var minY = -sceneHeight+canvasHeight;
+
+		    scene.x = scene.x>0?0:scene.x;
+		    scene.x = scene.x<minX?minX:scene.x;
+		    scene.y = scene.y<minY?minY:scene.y;
+		    scene.y = scene.y>0?0:scene.y;
+
+		    //porcentagem da posição do container
+			var pct_x = (scene.x/(sceneWidth-canvasWidth))*-1;
+			var pct_y = (scene.y/(sceneHeight-canvasHeight))*-1;
+			//----
+
+			var skyBounds 	 	  = sky.getTransformedBounds();
+			var layerPlantsBounds = layerPlants.getTransformedBounds();
+
+			//posição do do ceu ---			
+			var posx = -(skyBounds.width-canvasWidth)*pct_x-scene.x;
+			var posy = -(skyBounds.height-canvasHeight)*pct_y-scene.y;
+			
+			sky.x = posx;
+			sky.y = posy;
+
+			//posição plants ---			
+			var posx = -(layerPlantsBounds.width-canvasWidth)*pct_x-scene.x;
+			var posy = -(layerPlantsBounds.height-canvasHeight)*pct_y-scene.y;
+			//posy = posy>stageHeight?stageHeight:posy;
+
+			layerPlants.x = posx;
+			layerPlants.y = posy;
+
+			//optimiza o desempenho da aplicação, removendo os objetos que estao fora da tela
+			var total = blocks_arr.length;
+
+			var pos_char_x = player.x;
+			var pos_char_y = player.y;
+			
+			var limit_x_e = pos_char_x - (scene.x+pos_char_x);
+			var limit_x_d = pos_char_x + (canvasWidth - (scene.x+pos_char_x));
+			var limit_y_b = pos_char_y + (canvasHeight - (scene.y+pos_char_y));
+			var limit_y_c = pos_char_y - (scene.y+pos_char_y);
+			
+			//console.log(limit_x_e,limit_x_d,limit_y_c,limit_y_b);
+
+			for(var i=0; i<total; i++)
+			{
+				var block  = blocks_arr[i];				
+				var bounds = block.getTransformedBounds();
+
+				var minX = bounds.x;
+				var minY = bounds.y;
+				var maxX = minX+bounds.width;
+				var maxY = minY+bounds.height;
+
+				var inStage	= block.stage;
+				var out_h	= (minX>limit_x_d) || (maxX<limit_x_e);
+				var out_v	= (minY>limit_y_b) || (maxY<limit_y_c);
+				//console.log(inStage);
+				if( inStage && ( out_h || out_v ) ) 
+				{	
+					if(block.body)
+					{
+						var fix = block.body.GetFixtureList();
+						if(fix) block.body.DestroyFixture(fix);
+					}
+					blocks.removeChild(block);
+					//console.log(1);		
+				}else if( !inStage && (  !out_h  && !out_v )) 
+				{
+					if(block.body) block.body.CreateFixture(block.fixture);
+					blocks.addChild(block);					
+				}
+				
+			}
+
+			fps.innerHTML = "FPS: "+Math.round(createjs.Ticker.getMeasuredFPS());
+		}
+
+		function resize(e) {
+			//transform: scale(0.5, 0.5)
+			stageWidth  = (window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth);
+			stageHeight = (window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight);
+
+			var scale = stageWidth<minStageWidth?(minStageWidth/stageWidth):1;
+			var inverseScale = 1/scale;
+			canvas.style.transform = "scale("+inverseScale+", "+inverseScale+")";
+			canvasWidth  = stageWidth*scale;
+			canvasHeight = stageHeight*scale;
+
+			canvas.width  = canvasWidth;
+			canvas.height = canvasHeight;
+			if(canvasDebug)
+			{
+				canvasDebug.width  = canvasWidth;
+				canvasDebug.height = canvasHeight;
+			}
+			canvasWidth_m  = canvasWidth*.5;
+			canvasHeight_m = canvasHeight*.5;
+		}
+		window.onresize = resize;
+		window.onload   = function(){
+			resize();
+			loadSprites();
+		}
+	</script>
+</body>
+</html>
